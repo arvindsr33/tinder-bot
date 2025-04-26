@@ -1,0 +1,2 @@
+[console_scripts]
+tinder-bot = tinder_bot.cli:app

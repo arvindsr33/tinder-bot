@@ -1,0 +1,113 @@
+Metadata-Version: 2.4
+Name: tinder_bot
+Version: 0.1.0
+Summary: Automated Hinge opener generator using GPT-4o Vision
+Author-email: Hinge Bot Developer <developer@example.com>
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS
+Classifier: Development Status :: 3 - Alpha
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: pyautogui>=0.9.53
+Requires-Dist: opencv-python>=4.6.0.66
+Requires-Dist: pillow>=9.0.0
+Requires-Dist: openai>=1.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: typer[all]>=0.9.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-mock>=3.10.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.0.249; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+
+# Hinge Bot: Automated Conversation Opener Generator
+
+A Python application that automates crafting personalized openers on Hinge using GPT-4o Vision API.
+
+## Features
+
+- Detects iPhone screen being mirrored on macOS (via QuickTime or Simulator)
+- Scrolls through Hinge profiles to capture photos and prompt answers
+- Generates personalized, engaging openers using OpenAI's GPT-4o Vision
+- Automatically pastes openers into the Hinge chat input
+- Logs all interactions for debugging and improvement
+
+## Requirements
+
+- macOS with Python 3.11+
+- iPhone mirroring capability (QuickTime Player or Xcode Simulator)
+- OpenAI API key with GPT-4o Vision access
+
+## Installation
+
+1. Clone this repository:
+
+   ```bash
+   git clone https://github.com/yourusername/tinder-bot.git
+   cd tinder-bot
+   ```
+
+2. Create and activate a virtual environment:
+
+   ```bash
+   python -m venv venv
+   source venv/bin/activate
+   ```
+
+3. Install the package with development dependencies:
+
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
+4. Copy the example environment file and add your OpenAI API key:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your editor to add API key
+   ```
+
+## Usage
+
+1. Mirror your iPhone to your Mac using QuickTime Player or Xcode Simulator
+2. Start the bot:
+
+   ```bash
+   tinder-bot run
+   ```
+
+3. The bot will:
+   - Locate the iPhone window
+   - Scroll through the current profile
+   - Capture photos and prompts
+   - Generate a personalized opener
+   - Paste the opener into the chat
+
+## Development
+
+This project follows Test-Driven Development (TDD) principles:
+
+```bash
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov
+
+# Format code
+black src/
+
+# Lint code
+ruff check src/
+
+# Type check
+mypy src/
+```
+
+## License
+
+MIT

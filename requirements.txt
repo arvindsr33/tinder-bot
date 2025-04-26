@@ -1,0 +1,17 @@
+# Main dependencies
+pyautogui>=0.9.53
+opencv-python>=4.6.0.66
+pillow>=9.0.0
+openai>=1.0.0
+python-dotenv>=1.0.0
+rich>=13.0.0
+typer[all]>=0.9.0
+
+# Development dependencies
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.10.0
+pytest-cov>=4.1.0
+black>=23.0.0
+ruff>=0.0.249
+mypy>=1.0.0 
