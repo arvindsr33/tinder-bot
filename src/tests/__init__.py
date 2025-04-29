@@ -1,1 +1,1 @@
-"""Tests for Hinge Bot.""" 
+"""Tests for Tinder Bot.""" 

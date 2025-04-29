@@ -1,4 +1,4 @@
-"""Pytest fixtures for Hinge Bot tests."""
+"""Pytest fixtures for Tinder Bot tests."""
 
 import pytest
 from PIL import Image

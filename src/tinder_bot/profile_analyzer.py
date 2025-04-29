@@ -1,4 +1,4 @@
-"""Profile analysis script for Hinge Bot."""
+"""Profile analysis script for Tinder Bot."""
 
 import typer
 import logging
@@ -14,7 +14,7 @@ import random
 from typing import List
 
 # Initialize Typer app
-app = typer.Typer(help="Hinge Profile Analyzer - Get personalized profile improvement suggestions")
+app = typer.Typer(help="Tinder Profile Analyzer - Get personalized profile improvement suggestions")
 
 # Load environment variables
 load_dotenv()
@@ -77,7 +77,7 @@ def analyze(
     )
 ):
     """
-    Analyze your Hinge profile and get improvement suggestions.
+    Analyze your Tinder profile and get improvement suggestions.
     """
     # Set environment variables
     os.environ["ENVIRONMENT"] = env
@@ -99,7 +99,7 @@ def analyze(
     # Ensure directories exist
     Path(MY_PROFILE_DIR).mkdir(parents=True, exist_ok=True)
     
-    console.print("[bold green]Hinge Profile Analyzer[/bold green] - Starting up...")
+    console.print("[bold green]Tinder Profile Analyzer[/bold green] - Starting up...")
     
     # Verify OpenAI API key
     api_key = os.getenv("OPENAI_API_KEY")
@@ -128,7 +128,7 @@ def analyze(
         # Only capture new screenshots if we're not using an existing profile
         if not use_existing:
             # Step 1: Wait for user to navigate to their profile
-            console.print("\n[bold yellow]Please navigate to your Hinge profile.[/bold yellow]")
+            console.print("\n[bold yellow]Please navigate to your Tinder profile.[/bold yellow]")
             input("Press Enter when ready...")
             
             # Step 2: Find the iPhone window
@@ -206,7 +206,7 @@ def analyze(
         # Prepare prompt for profile analysis
         ANALYSIS_PROMPT = f"""
         You're a helpful dating coach who enjoys young people in finding suitable partners and bringing them together.
-        I'm showing you {num_comparisons + 1} Hinge dating profiles:
+        I'm showing you {num_comparisons + 1} Tinder dating profiles:
         1. The first image is the profile of the candidate that needs improvement
         2. The remaining {num_comparisons} images are profiles of people the candidate deserves based on the hard work he has done in his life and career.
         
@@ -263,9 +263,9 @@ def analyze(
 
 @app.command()
 def version():
-    """Display version information."""
-    console.print("[bold green]Hinge Profile Analyzer[/bold green] v0.1.0")
-    console.print("A tool for analyzing and improving your Hinge dating profile.")
+    """Print the version number."""
+    console.print("[bold green]Tinder Profile Analyzer[/bold green] v0.1.0")
+    console.print("A tool for analyzing and improving your Tinder dating profile.")
 
 if __name__ == "__main__":
     app() 

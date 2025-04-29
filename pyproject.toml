@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tinder_bot"
 version = "0.1.0"
-description = "Automated Hinge opener generator using GPT-4o Vision"
+description = "Automated Tinder opener generator using GPT-4o Vision"
 authors = [
-    {name = "Hinge Bot Developer", email = "developer@example.com"}
+    {name = "Tinder Bot Developer", email = "developer@example.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.11"

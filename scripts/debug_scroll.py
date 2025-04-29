@@ -24,7 +24,7 @@ from src.tinder_bot.scroll import scroll_profile, get_hardcoded_window
 
 def main():
     print("Starting iPhone window detection and scrolling test with hardcoded values...")
-    print("This script demonstrates the full scrolling pattern for a Hinge profile.")
+    print("This script demonstrates the full scrolling pattern for a Tinder profile.")
     
     # Print environment info
     print(f"Environment: {os.getenv('ENVIRONMENT', 'MONITOR')}")

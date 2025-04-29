@@ -1,4 +1,4 @@
-"""Message input module for sending openers in Hinge chats."""
+"""Message input module for sending openers in Tinder chats."""
 
 import pyautogui
 import time
@@ -16,7 +16,7 @@ TYPING_SPEED_MAX = 0.03  # Maximum delay
 
 def send_opener(opener: str, bbox: Tuple[int, int, int, int]) -> None:
     """
-    Send an opener message in the Hinge chat.
+    Send an opener message in the Tinder chat.
     
     Args:
         opener: Generated opener text
@@ -55,7 +55,7 @@ def send_opener(opener: str, bbox: Tuple[int, int, int, int]) -> None:
     time.sleep(random.uniform(0.5, 1.0))
     
     # Find and click the send button (usually to the right of the text field)
-    # In Hinge, this is typically at the right edge of the text input area
+    # In Tinder, this might be at the right edge of the text input area
     send_button_x = x + width - 40  # 40 pixels from right edge
     send_button_y = input_y  # Same vertical position as the text input
     

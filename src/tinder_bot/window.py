@@ -13,8 +13,8 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # iPhone app visual characteristics
-HINGE_APP_TOP_COLOR = (255, 255, 255)  # White background at the top of Hinge profile
-HINGE_PROFILE_HEADER_COLOR = (60, 60, 60)  # Dark gray text for header
+TINDER_APP_TOP_COLOR = (255, 255, 255)  # White background at the top of Tinder profile
+TINDER_PROFILE_HEADER_COLOR = (60, 60, 60)  # Dark gray text for header
 
 # Directory for saving screenshots
 SCREENSHOT_DIR = os.getenv("SCREENSHOT_DIR", "./screenshots")
@@ -67,8 +67,8 @@ def find_iphone_window() -> Tuple[int, int, int, int]:
     Returns:
         Tuple[int, int, int, int]: (x, y, width, height) of the iPhone window or fallback region
     """
-    # If the environment is set, use hardcoded values
-    if ENVIRONMENT == "MONITOR" or ENVIRONMENT == "MAC":
+    # If the environment is set to use hardcoded values, retrieve them
+    if ENVIRONMENT in ["MONITOR", "PRO", "AIR"]:
         logger.info(f"Using hardcoded {ENVIRONMENT} dimensions for iPhone window")
         from tinder_bot.scroll import get_hardcoded_window
         bbox = get_hardcoded_window()

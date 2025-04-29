@@ -1,6 +1,6 @@
-"""Profile scrolling module for navigating Hinge profiles."""
+"""Profile scrolling module for navigating Tinder profiles."""
 
-from typing import Tuple
+from typing import Tuple, Optional
 import pyautogui
 import time
 import logging
@@ -18,6 +18,13 @@ UP_SCROLL_AMOUNT = 600  # For scrolling back up
 # Small steps settings
 STEPS_PER_SCROLL = 10  # Break each scroll into 10 smaller steps
 STEP_DELAY = 0.01  # Small delay between steps
+
+# Click position for AIR environment (initialized, set below)
+NEXT_PHOTO_POS: Optional[Tuple[int, int]] = None 
+
+# Like/Pass button positions for AIR environment (initialized, set below)
+LIKE_BUTTON: Optional[Tuple[int, int]] = None
+PASS_BUTTON: Optional[Tuple[int, int]] = None
 
 # Hardcoded screen dimensions based on environment
 ENVIRONMENT = os.getenv("ENVIRONMENT", "MONITOR")
@@ -38,8 +45,8 @@ if ENVIRONMENT == "MONITOR":
     IPHONE_WIDTH = IPHONE_X_END - IPHONE_X_BEGIN
     IPHONE_HEIGHT = IPHONE_Y_END - IPHONE_Y_BEGIN
     
-elif ENVIRONMENT == "MAC":
-    # Mac configuration using provided coordinates
+elif ENVIRONMENT == "PRO":
+    # MacBook Pro configuration using provided coordinates
     # Set screen dimensions based on actual Mac screen
     SCREEN_WIDTH, SCREEN_HEIGHT = pyautogui.size()
     
@@ -53,8 +60,34 @@ elif ENVIRONMENT == "MAC":
     IPHONE_WIDTH = IPHONE_X_END - IPHONE_X_BEGIN
     IPHONE_HEIGHT = IPHONE_Y_END - IPHONE_Y_BEGIN
     
-    logger.info(f"Using MAC configuration with iPhone dimensions: {IPHONE_WIDTH}x{IPHONE_HEIGHT}")
+    logger.info(f"Using PRO configuration with iPhone dimensions: {IPHONE_WIDTH}x{IPHONE_HEIGHT}")
     logger.info(f"iPhone position: ({IPHONE_X_BEGIN}, {IPHONE_Y_BEGIN}) to ({IPHONE_X_END}, {IPHONE_Y_END})")
+
+elif ENVIRONMENT == "AIR":
+    # MacBook Air configuration (PLACEHOLDER - UPDATE THESE VALUES)
+    # Set screen dimensions based on actual Mac screen
+    SCREEN_WIDTH, SCREEN_HEIGHT = pyautogui.size()
+
+    # iPhone window position and size (PLACEHOLDER VALUES)
+    IPHONE_X_BEGIN = 815  # Top-left X coordinate (UPDATE ME)
+    IPHONE_Y_BEGIN = 260  # Top-left Y coordinate (UPDATE ME)
+    IPHONE_X_END = 1018 # Bottom-right X coordinate (UPDATE ME)
+    IPHONE_Y_END = 575   # Bottom-right Y coordinate (UPDATE ME)
+    
+    # Position to click for next photo
+    NEXT_PHOTO_POS = (974, 410)
+
+    # Like/Pass button coordinates for AIR
+    LIKE_BUTTON = (955, 580)
+    PASS_BUTTON = (880, 580)
+
+    # Calculate width and height
+    IPHONE_WIDTH = IPHONE_X_END - IPHONE_X_BEGIN
+    IPHONE_HEIGHT = IPHONE_Y_END - IPHONE_Y_BEGIN
+
+    logger.warning("Using AIR configuration with PLACEHOLDER iPhone dimensions. Update src/tinder_bot/scroll.py!")
+    logger.info(f"Placeholder AIR dimensions: {IPHONE_WIDTH}x{IPHONE_HEIGHT}")
+    logger.info(f"Placeholder AIR position: ({IPHONE_X_BEGIN}, {IPHONE_Y_BEGIN}) to ({IPHONE_X_END}, {IPHONE_Y_END})")
 else:
     # Use system screen size for other environments
     SCREEN_WIDTH, SCREEN_HEIGHT = pyautogui.size()
@@ -72,7 +105,9 @@ def get_hardcoded_window() -> Tuple[int, int, int, int]:
     """
     if ENVIRONMENT == "MONITOR":
         return (IPHONE_X_BEGIN, IPHONE_Y_BEGIN, IPHONE_WIDTH, IPHONE_HEIGHT)
-    elif ENVIRONMENT == "MAC":
+    elif ENVIRONMENT == "PRO":
+        return (IPHONE_X_BEGIN, IPHONE_Y_BEGIN, IPHONE_WIDTH, IPHONE_HEIGHT)
+    elif ENVIRONMENT == "AIR":
         return (IPHONE_X_BEGIN, IPHONE_Y_BEGIN, IPHONE_WIDTH, IPHONE_HEIGHT)
     else:
         raise NotImplementedError(f"No hardcoded window dimensions for environment: {ENVIRONMENT}")
@@ -119,8 +154,11 @@ def validate_bbox(bbox: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
     if ENVIRONMENT == "MONITOR":
         logger.info("Using hardcoded MONITOR dimensions for iPhone window")
         return get_hardcoded_window()
-    elif ENVIRONMENT == "MAC":
-        logger.info("Using hardcoded MAC dimensions for iPhone window")
+    elif ENVIRONMENT == "PRO":
+        logger.info("Using hardcoded PRO dimensions for iPhone window")
+        return get_hardcoded_window()
+    elif ENVIRONMENT == "AIR":
+        logger.info("Using hardcoded AIR dimensions for iPhone window")
         return get_hardcoded_window()
     
     # Otherwise validate the provided bbox
@@ -198,9 +236,9 @@ def perform_stepped_scroll(amount: int) -> None:
 
 def scroll_profile(bbox: Tuple[int, int, int, int]) -> None:
     """
-    Scroll through a Hinge profile to reveal all photos and prompts.
+    Scroll through a Tinder profile to reveal all photos and prompts.
     
-    This function uses the exact scroll values for Hinge profiles:
+    This function uses the exact scroll values for Tinder profiles:
     - First scroll: -660 pixels
     - Subsequent scrolls: -720 pixels
     - Total of 5 scrolls (resulting in 6 screenshots)

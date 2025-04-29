@@ -1,4 +1,4 @@
-"""Command-line interface for Hinge Bot."""
+"""Command-line interface for Tinder Bot."""
 
 import typer
 import logging
@@ -10,9 +10,11 @@ from datetime import datetime
 from pathlib import Path
 import time
 import pyautogui
+import glob # Import glob
+import random # Import random
 
 # Initialize Typer app
-app = typer.Typer(help="Hinge Bot - Automated opener generator")
+app = typer.Typer(help="Tinder Bot - Automated opener generator")
 
 # Load environment variables
 load_dotenv()
@@ -88,27 +90,30 @@ def setup_logging():
 
 @app.command()
 def run(
-    use_stitched: bool = typer.Option(
-        True, "--stitch/--no-stitch", help="Stitch screenshots into a single image for GPT-4o"
+    mode: str = typer.Option(
+        "opener", "--mode", "-m", help="Operation mode: 'opener' (generate openers) or 'like' (decide like/pass)"
     ),
     send_message: bool = typer.Option(
-        False, "--send/--no-send", help="Send the generated opener in Hinge"
+        False, "--send/--no-send", help="Send the generated opener in Tinder (only applies if mode='opener')"
     ),
     debug: bool = typer.Option(
         False, "--debug", help="Run in debug mode with extra output"
     ),
     env: str = typer.Option(
-        "MONITOR", "--env", "-e", help="Environment to use (MONITOR or MAC)"
+        "MONITOR", "--env", "-e", help="Environment to use (MONITOR, PRO, or AIR)"
     ),
     keep_screenshots: bool = typer.Option(
         False, "--keep-screenshots", help="Keep original screenshots after stitching"
     ),
     num_scrolls: int = typer.Option(
-        5, "--num-scrolls", "-n", help="Number of scrolls to perform (default: 5)"
+        4, "--num-scrolls", "-n", help="Number of scrolls to perform (default: 5)"
+    ),
+    duration: int = typer.Option(
+        15, "--duration", "-d", help="Maximum duration in minutes to run the 'like' mode (default: 15)"
     )
 ):
     """
-    Run the Hinge Bot to generate and optionally send openers.
+    Run the Tinder Bot to generate and optionally send openers.
     """
     # Set environment variables for the session before importing any modules that use them
     os.environ["ENVIRONMENT"] = env
@@ -123,14 +128,20 @@ def run(
     from tinder_bot.window import find_iphone_window, save_detected_window
     from tinder_bot.capture import take_high_quality_screenshot, delete_screenshots
     from tinder_bot.scroll import scroll_profile, get_hardcoded_window
-    from tinder_bot.gpt import generate_opener
+    from tinder_bot.gpt import generate_opener # Import will be conditional later
+    from tinder_bot.like import like_photo # Import the new like function
     from tinder_bot.message import send_opener
     from tinder_bot.image_utils import stitch_images
+    # Import the profile processor
+    from tinder_bot.profile_processor import process_single_profile 
+    # Import the ad checker
+    from tinder_bot.ads import check_for_ads 
     
     # Import scroll constants and override NUM_SCROLLS
     from tinder_bot.scroll import (
         FIRST_SCROLL_AMOUNT, SUBSEQUENT_SCROLL_AMOUNT, SCROLL_DELAY, 
-        UP_SCROLL_AMOUNT, STEPS_PER_SCROLL, perform_stepped_scroll
+        UP_SCROLL_AMOUNT, STEPS_PER_SCROLL, perform_stepped_scroll, NEXT_PHOTO_POS,
+        PASS_BUTTON, LIKE_BUTTON, get_safe_coordinates, ENVIRONMENT # Import button coords and env
     )
     import tinder_bot.scroll as scroll
     scroll.NUM_SCROLLS = num_scrolls
@@ -159,7 +170,7 @@ def run(
         
         logger.debug("Debug mode enabled")
     
-    console.print(f"[bold green]Hinge Bot[/bold green] - Starting up in {env} environment...")
+    console.print(f"[bold green]Tinder Bot[/bold green] - Starting up in {env} environment...")
     
     # Check for OpenAI API key
     api_key = os.getenv("OPENAI_API_KEY")
@@ -168,195 +179,256 @@ def run(
         raise typer.Exit(code=1)
     
     try:
-        # Step 1: Find the iPhone window
-        console.print("\n[bold]Step 1:[/bold] Finding iPhone window...")
-        
-        # Use get_hardcoded_window directly for MAC and MONITOR environments
-        if env in ["MAC", "MONITOR"]:
-            bbox = get_hardcoded_window()
-            console.print(f"Using hardcoded {env} dimensions for iPhone window")
+        # Step 1.5: Clear old screenshots from root directory (runs once before loop/main action)
+        console.print("\n[bold]Step 1.5:[/bold] Clearing old screenshots from root directory...")
+        screenshots_dir = Path("./screenshots")
+        screenshots_dir.mkdir(exist_ok=True) # Ensure directory exists
+        old_screenshots = glob.glob(str(screenshots_dir / "*.png"))
+        deleted_count = 0
+        if old_screenshots:
+            console.print(f"Found {len(old_screenshots)} old screenshots to clear...")
+            for f_path in old_screenshots:
+                try:
+                    os.remove(f_path)
+                    deleted_count += 1
+                    logger.debug(f"Deleted old screenshot: {f_path}")
+                except OSError as e:
+                    logger.warning(f"Could not delete old screenshot {f_path}: {e}")
+            console.print(f"Cleared {deleted_count} old screenshots.")
         else:
-            # Fall back to visual detection for other environments
-            bbox = find_iphone_window()
+            console.print("No old screenshots found in root directory to clear.")
+
+        # --- Decide Action based on Mode --- 
+        if mode == "like":
+            num_iterations = random.randint(50, 100)
+            console.print(f"\n[bold]Running LIKE mode for {num_iterations} iterations or max {duration} minutes...[/bold]")
             
-        if not bbox:
-            console.print("[bold red]ERROR:[/bold red] Could not find iPhone window.")
-            raise typer.Exit(code=1)
-        
-        x, y, width, height = bbox
-        console.print(f"Found iPhone window at ({x}, {y}) with size {width}x{height}")
-        center_x = x + width // 2
-        center_y = y + height // 2
-        console.print(f"Center point: ({center_x}, {center_y})")
-        
-        # Move to each corner of the window to visually verify position if in debug mode
-        if debug:
-            console.print("Moving cursor to window corners for verification...")
-            # Top-left
-            pyautogui.moveTo(x, y, duration=0.5)
-            time.sleep(0.5)
-            # Top-right
-            pyautogui.moveTo(x + width, y, duration=0.5)
-            time.sleep(0.5)
-            # Bottom-right
-            pyautogui.moveTo(x + width, y + height, duration=0.5)
-            time.sleep(0.5)
-            # Bottom-left
-            pyautogui.moveTo(x, y + height, duration=0.5)
-            time.sleep(0.5)
-        
-        # Step 2: Begin screenshot capture process
-        console.print("\n[bold]Step 2:[/bold] Capturing initial screenshot...")
-        screenshot_paths = []
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Move to center and click to ensure focus
-        pyautogui.moveTo(center_x, center_y, duration=0.5)
-        pyautogui.click()
-        time.sleep(1.0)
-        
-        # Take initial high-quality screenshot using the direct region capture
-        initial_path = take_high_quality_screenshot(bbox, 1, timestamp)
-        screenshot_paths.append(initial_path)
-        console.print(f"Initial screenshot saved to: {initial_path}")
-        
-        # Step 3: Scroll and capture more screenshots - we need exactly 5 scrolls for 6 total screenshots
-        console.print("\n[bold]Step 3:[/bold] Scrolling and capturing profile...")
-        
-        # Use the stepped scroll function
-        perform_stepped_scroll(FIRST_SCROLL_AMOUNT)
-        
-        # Wait for content to load
-        time.sleep(SCROLL_DELAY)
-        
-        # Take screenshot
-        screenshot_number = 2  # Screenshot 2
-        screenshot_path = take_high_quality_screenshot(bbox, screenshot_number, timestamp)
-        screenshot_paths.append(screenshot_path)
-        console.print(f"Screenshot {screenshot_number} saved to: {screenshot_path}")
-        
-        # Step 4: Scroll and capture more screenshots - we need exactly 5 scrolls for 6 total screenshots
-        console.print("\n[bold]Step 4:[/bold] Scrolling and capturing profile...")
-        
-        for i in range(num_scrolls - 1):  # Should be exactly 4 more scrolls
-            # Move back to center and click to ensure focus before scrolling
-            pyautogui.moveTo(center_x, center_y, duration=0.3)
-            pyautogui.click()
-            time.sleep(0.1)
+            start_time = time.time()
+            end_time = start_time + duration * 60
+            iterations_completed = 0 # Keep track of actual iterations done
             
-            # Perform scroll with logging
-            console.print(f"Scroll {i+2}/{total_screenshots}: {SUBSEQUENT_SCROLL_AMOUNT} pixels...")
+            for i in range(num_iterations):
+                # --- Time Check --- 
+                if time.time() >= end_time:
+                    console.print(f"\n[bold]Time limit ({duration} minutes) reached. Stopping early.[/bold]")
+                    break # Exit the loop if duration exceeded
+                # ------------------
+                
+                console.rule(f"Iteration {i+1}/{num_iterations} (Time left: {max(0, int(end_time - time.time()))}s)")
+                try:
+                    # Step 0: Check for Ads 
+                    if debug:
+                        console.print("\n[bold]Step 0:[/bold] Checking for advertisements...")
+                    # Pass debug flag to ad checker
+                    ad_result = check_for_ads(i + 1, debug)
+                    
+                    # If it's an ad, PASS and skip
+                    if ad_result == "YES":
+                        # Keep this message as it indicates a specific action/decision
+                        console.print("[bold yellow]Ad detected. Performing PASS action.[/bold yellow]") 
+                        if ENVIRONMENT == "AIR" and PASS_BUTTON:
+                            try:
+                                safe_x, safe_y = get_safe_coordinates(PASS_BUTTON[0], PASS_BUTTON[1])
+                                logger.info(f"Clicking PASS button (ad detected) at safe coordinates: ({safe_x}, {safe_y})")
+                                pass_delay = random.uniform(1.0, 2.0)
+                                logger.debug(f"Waiting {pass_delay:.2f}s before clicking PASS (ad)...")
+                                time.sleep(pass_delay)
+                                pyautogui.click(safe_x, safe_y)
+                                time.sleep(0.5) # Small delay after click
+                            except Exception as click_err:
+                                logger.error(f"Error clicking PASS for ad: {click_err}", exc_info=True)
+                                console.print(f"[bold red]Error:[/bold red] Failed PASS click for ad.")
+                        else:
+                            if debug: # Only show placeholder if debugging
+                                console.print(f"[italic yellow]Placeholder: PASS action for ad (Env: {ENVIRONMENT}, Button defined: {PASS_BUTTON is not None}).[/italic yellow]")
+                        
+                        # Pause and continue
+                        pause_duration = random.uniform(2.0, 3.0)
+                        if debug:
+                            console.print(f"\n--- Ad handled. Pausing for {pause_duration:.2f} seconds before next iteration... ---")
+                        time.sleep(pause_duration)
+                        continue
+                    elif ad_result == "ERROR":
+                        # Keep this warning
+                        console.print("[bold yellow]Warning:[/bold yellow] Ad check failed. Proceeding with profile processing.")
+                        logger.warning("Ad check resulted in ERROR, proceeding with normal like/pass flow.")
+                    else: # ad_result == "NO"
+                        if debug:
+                            console.print("No ad detected. Proceeding with profile processing.")
+                    
+                    # Step 1-4: Process profile 
+                    if debug:
+                        console.print("\n[bold]Step 1-4:[/bold] Processing profile (capture & stitch)...")
+                    # Get window coords 
+                    bbox = get_hardcoded_window() # Needed for profile_processor
+                    # Pass debug flag to profile processor
+                    stitched_path, _ = process_single_profile(
+                        env=env, 
+                        num_scrolls=num_scrolls, 
+                        logger=logger, 
+                        console=console, 
+                        keep_screenshots=keep_screenshots,
+                        debug=debug # Pass the flag
+                    )
+
+                    if not stitched_path:
+                        console.print("[bold red]ERROR:[/bold red] Failed to process profile for this iteration.")
+                        time.sleep(random.uniform(2.0, 3.0))
+                        continue 
+                    
+                    if debug:
+                        console.print(f"Stitched profile image: {stitched_path}")
+
+                    # Step 5: Decide Like/Pass
+                    if debug:
+                        console.print("\n[bold]Step 5:[/bold] Deciding Like/Pass...")
+                    # Pass debug flag to like_photo
+                    like_photo(stitched_path, debug)
+                except Exception as iter_e:
+                     logger.error(f"An unexpected error occurred during iteration {i+1}", exc_info=True)
+                     console.print(f"[bold red]ERROR:[/bold red] Unexpected error during iteration {i+1}: {iter_e}")
+                     console.print("Attempting to continue to the next iteration...")
+
+                iterations_completed += 1 # Increment counter only if iteration finishes (or before sleep)
+                # Pause between iterations
+                pause_duration = random.uniform(2.0, 3.0)
+                # Check time again before sleeping long
+                if time.time() + pause_duration >= end_time:
+                    console.print(f"\n--- Iteration {i+1} complete. Time limit reached during pause. Finishing... ---")
+                    # No need to break here as the check at the start of the next loop will catch it, or the loop ends
+                    # Or we could break here to be absolutely sure: break
+                
+                if debug:
+                    console.print(f"\n--- Iteration {i+1} complete. Pausing for {pause_duration:.2f} seconds... ---")
+                time.sleep(pause_duration)
             
-            # Use the stepped scroll function
-            perform_stepped_scroll(SUBSEQUENT_SCROLL_AMOUNT)
-            
-            # Wait for content to load
-            time.sleep(SCROLL_DELAY)
-            
-            # Take screenshot
-            screenshot_number = i + 3  # Screenshots 3-6
-            screenshot_path = take_high_quality_screenshot(bbox, screenshot_number, timestamp)
-            screenshot_paths.append(screenshot_path)
-            console.print(f"Screenshot {screenshot_number} saved to: {screenshot_path}")
-        
-        # Scroll back to top for next profile
-        console.print("\nScrolling back to top of profile...")
-        
-        # Calculate how many up-scrolls needed based on total distance scrolled
-        total_scroll_distance = abs(FIRST_SCROLL_AMOUNT) + abs(SUBSEQUENT_SCROLL_AMOUNT) * (num_scrolls - 1)
-        scrolls_needed = total_scroll_distance // abs(UP_SCROLL_AMOUNT) + 1
-        
-        # for i in range(scrolls_needed):
-        #     pyautogui.click(center_x, center_y)
-        #     time.sleep(0.1)
-        #     console.print(f"Scroll up {i+1}/{scrolls_needed}: {UP_SCROLL_AMOUNT} pixels")
-        #     perform_stepped_scroll(UP_SCROLL_AMOUNT)
-        #     time.sleep(0.5)
-        
-        # Step 5: Stitch screenshots and generate opener using GPT-4o
-        console.print("\n[bold]Step 5:[/bold] Generating opener with GPT-4o...")
-        full_response = ""
-        if use_stitched:
-            console.print("Stitching screenshots into a single image...")
-            
-            # Stitch the images, but don't delete originals yet
-            stitched_path = stitch_images(screenshot_paths, delete_originals=False, layout=layout)
+            # Print final status
+            elapsed_time = time.time() - start_time
+            if iterations_completed < num_iterations:
+                console.print(f"\n[bold]Like mode finished early due to time limit ({duration} min). Ran for {elapsed_time:.2f}s, completed {iterations_completed}/{num_iterations} iterations.[/bold]")
+            else:
+                 console.print(f"\n[bold]Like mode finished all {num_iterations} iterations in {elapsed_time:.2f}s (within {duration} min limit).[/bold]")
+
+        elif mode == "opener":
+            # --- Opener Mode Logic (Runs Once) ---
+            # Step 1-4: Process profile (capture & stitch)
+            console.print("\n[bold]Step 1-4:[/bold] Processing profile (capture & stitch)...")
+            stitched_path, bbox = process_single_profile(
+                env=env, 
+                num_scrolls=num_scrolls, 
+                logger=logger, 
+                console=console, 
+                keep_screenshots=keep_screenshots
+            )
+
+            if not stitched_path or not bbox:
+                console.print("[bold red]ERROR:[/bold red] Failed to process profile.")
+                raise typer.Exit(code=1)
+
+            x, y, width, height = bbox
+            center_x = x + width // 2
+            center_y = y + height // 2
+            console.print(f"Profile processed. Using window at ({x}, {y}) size {width}x{height}")
+            console.print(f"Stitched profile image: {stitched_path}")
+
+            # Step 5: Generate opener 
+            # The stitching is done inside process_single_profile now
+            console.print("\n[bold]Step 5:[/bold] Generating opener with GPT-4o...")
+            full_response = ""
+            opener = ""
+            name = "unknown" # Default name
             
             # Generate opener using the stitched image
             name, full_response = generate_opener(stitched_path)
             console.print(f"\n[bold green]Generated opener:[/bold green] {full_response}")
             
             # Prompt the user to enter their picked response
-            picked_response = input("Enter the response you decided to pick: ")
-            print(picked_response)
+            # Extract just the first line as the potential opener to send
+            if full_response:
+                opener = full_response.split('\n')[0].strip()
+                if opener.startswith("-"):
+                    opener = opener.split(":", 1)[-1].strip()
 
+            picked_response = input(f"Suggested: '{opener}'\nEnter the response you decided to pick (or 'redo'): ")
+            
             # If the user wants to redo the opener, generate a new one
-            if picked_response.strip().lower() == "redo":
-                while picked_response.strip().lower() == "redo":
-                    # Generate opener using the stitched image
-                    name, full_response = generate_opener(stitched_path)
-                    console.print(f"\n[bold green]Generated opener:[/bold green] {full_response}")
-                    picked_response = input("Enter the response you decided to pick: ")
+            while picked_response.strip().lower() == "redo":
+                name, full_response = generate_opener(stitched_path)
+                console.print(f"\n[bold green]Generated opener:[/bold green] {full_response}")
+                if full_response:
+                    opener = full_response.split('\n')[0].strip()
+                    if opener.startswith("-"):
+                        opener = opener.split(":", 1)[-1].strip()
+                picked_response = input(f"Suggested: '{opener}'\nEnter the response you decided to pick (or 'redo'): ")
             
+            # Use the user's picked response if provided, otherwise use the first generated line
+            final_opener_to_send = picked_response if picked_response else opener
 
-            # Append the picked response to the full response
-            full_response += f"\n\nPicked: {picked_response}"
+            # Append the picked response info to the full response for saving
+            full_response_to_save = full_response + f"\n\nPicked: {final_opener_to_send}"
             
-            # Create directory for today's profiles
+            # --- Save results (common logic, maybe refactor later) ---
             date_str = datetime.now().strftime("%Y%m%d")
             base_dir = Path(f"./screenshots/profile_{date_str}")
             base_dir.mkdir(parents=True, exist_ok=True)
             
-            # Determine file names based on the presence of a name
-            name = name.strip().replace(" ", "_")
+            name = name.strip().replace(" ", "_") # Sanitize name for filename
             profile_image_path = base_dir / f"profile_{name}.png"
             responses_file_path = base_dir / f"profile_{name}_responses.txt"
             
-            # Check if the profile image path already exists
+            # Handle potential filename collisions
             if profile_image_path.exists():
-                timestamp = datetime.now().strftime("%H%M%S")
-                profile_image_path = base_dir / f"profile_{name}_{timestamp}.png"
-                responses_file_path = base_dir / f"profile_{name}_{timestamp}_responses.txt"
+                timestamp_suffix = datetime.now().strftime("%H%M%S")
+                profile_image_path = base_dir / f"profile_{name}_{timestamp_suffix}.png"
+                responses_file_path = base_dir / f"profile_{name}_{timestamp_suffix}_responses.txt"
             
-            # Rename the stitched image
-            stitched_path = Path(stitched_path)
-            stitched_path.rename(profile_image_path)
+            # Rename stitched image and save response
+            Path(stitched_path).rename(profile_image_path)
             console.print(f"Stitched image saved as: {profile_image_path}")
-            
-            # Save the full response
-            responses_file_path.write_text(full_response)
+            responses_file_path.write_text(full_response_to_save)
             console.print(f"Responses saved to: {responses_file_path}")
+            # --- End Save results --- 
+
+            # Original screenshot deletion is handled by process_single_profile now
+            # if not keep_screenshots:
+            #     console.print("Deleting original screenshots...")
+            #     # Need the original paths if we want to delete here, but let process_single_profile handle it
+            #     # deleted_count = delete_screenshots(screenshot_paths) 
+            #     # console.print(f"Deleted {deleted_count} original screenshots")
+            #     pass # Deletion handled earlier
+            logger.info(f"Generated opener using stitched image: {profile_image_path}")
             
-            # Delete original screenshots if not keeping them
-            if not keep_screenshots:
-                console.print("Deleting original screenshots...")
-                deleted_count = delete_screenshots(screenshot_paths)
-                console.print(f"Deleted {deleted_count} original screenshots")
+            console.print("\n[bold]Opener to send:[/bold]")
+            console.print(final_opener_to_send if final_opener_to_send else "[yellow]No opener generated/picked.[/yellow]")
+            
+            # Optionally send the message
+            if send_message and final_opener_to_send:
+                console.print("\n[bold]Step 6:[/bold] Sending opener in Tinder...")
+                send_opener(final_opener_to_send, bbox)
+                logger.info("Sent opener to Tinder")
+        
         else:
-            # Generate opener using individual screenshots
-            name, full_response = generate_opener(screenshot_paths, use_stitched=False)
-            console.print(f"\n[bold green]Generated opener:[/bold green] {full_response}")
-        
-        # Step 6: Send opener if requested
-        if send_message:
-            console.print("\n[bold]Step 6:[/bold] Sending opener in Hinge...")
-            send_opener(full_response, bbox)
-            console.print("[bold green]Opener sent successfully![/bold green]")
-        
-        console.print("\n[bold green]Done![/bold green] Hinge Bot completed successfully.")
+             console.print(f"[bold red]Error:[/bold red] Invalid mode '{mode}'. Choose 'opener' or 'like'.")
+             raise typer.Exit(code=1)
+
+        console.print("\n[bold green]Done![/bold green] Tinder Bot completed successfully.")
         
     except Exception as e:
-        logger.exception("Error during execution")
-        console.print(f"\n[bold red]ERROR:[/bold red] {str(e)}")
+        logger.error("An unexpected error occurred", exc_info=True)
+        console.print(f"[bold red]ERROR:[/bold red] An unexpected error occurred: {e}")
         raise typer.Exit(code=1)
 
 @app.command()
 def version():
-    """
-    Display version information.
-    """
-    console.print("[bold green]Hinge Bot[/bold green] v0.1.0")
-    console.print("A Python application that automates crafting personalized openers on Hinge.")
+    """Display version information."""
+    console.print("[bold green]Tinder Bot[/bold green] v0.1.0")
+    console.print("A Python application that automates crafting personalized openers on Tinder.")
+
+@app.command()
+def analyze_profile():
+    # Implementation of analyze_profile command
+    console.print("[bold green]Analyzing profile...[/bold green]")
+    # Add your implementation here
 
 if __name__ == "__main__":
     app()

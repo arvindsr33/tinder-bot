@@ -1,4 +1,4 @@
-"""Screenshot capture module for Hinge Bot using direct region capture."""
+"""Screenshot capture module for Tinder Bot using direct region capture."""
 
 from typing import Tuple, Optional
 import pyautogui
