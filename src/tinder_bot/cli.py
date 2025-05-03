@@ -318,7 +318,8 @@ def run(
                 num_scrolls=num_scrolls, 
                 logger=logger, 
                 console=console, 
-                keep_screenshots=keep_screenshots
+                keep_screenshots=keep_screenshots,
+                debug=debug # Pass the flag
             )
 
             if not stitched_path or not bbox:
