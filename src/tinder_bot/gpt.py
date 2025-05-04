@@ -228,24 +228,27 @@ def gpt_check_ads(image_path: str) -> str:
         return "ERROR_API_CALL"
 
 
-def like_or_pass(stitched_image_path: str) -> str:
+def like_or_pass(stitched_image_path: str) -> Tuple[str, str]:
     """
     Calls OpenAI API to decide whether to LIKE or PASS a profile based on the image.
+    Also retrieves the reason for the decision.
 
     Args:
         stitched_image_path: Path to the single stitched profile image.
 
     Returns:
-        str: "LIKE" or "PASS" (or fallback/error indicator)
+        Tuple[str, str]: (Decision ("LIKE" or "PASS"), Reason string)
+                           Returns ("LIKE", "AI response unparseable or refusal; defaulting to LIKE.") on failure.
     """
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         logger.error("OPENAI_API_KEY environment variable is not set")
-        return "ERROR_API_KEY"
+        return "LIKE", "ERROR: API Key not set (Defaulting to LIKE)" # Default LIKE
 
     model = os.getenv("OPENAI_MODEL", DEFAULT_MODEL)
     logger.info(f"Using OpenAI model for like/pass: {model}")
     client = openai.OpenAI(api_key=api_key)
+    full_response = "(No response received)" # Initialize in case of early error
 
     try:
         # Optimize and encode the single stitched image
@@ -271,20 +274,76 @@ def like_or_pass(stitched_image_path: str) -> str:
                 {"role": "system", "content": like_prompt},
                 {"role": "user", "content": content}
             ],
-            max_tokens=10,  # Expecting only LIKE or PASS
+            max_tokens=50,  # Increased slightly for reason
             temperature=0.2 # Low temperature for deterministic decision
         )
 
-        decision = response.choices[0].message.content.strip().upper()
-        logger.info(f"Received decision from AI: {decision}")
+        full_response = response.choices[0].message.content.strip()
+        logger.info(f"Received decision and reason from AI:\n{full_response}")
+        # User requested print statement - keep it for now
+        print(f"Received decision and reason from AI:\n{full_response}") 
 
-        # Validate response
-        if decision in ["LIKE", "PASS"]:
-            return decision
-        else:
-            logger.warning(f"Unexpected response format from like/pass API: {decision}")
-            return choice(["LIKE", "PASS"])
+        # Parse the response (expecting two lines)
+        lines = full_response.split('\n')
+        decision = "LIKE" # Default to LIKE on parsing failure
+        reason = "Could not parse AI response."
+        parsing_successful = False # Flag to track if parsing worked
+
+        if len(lines) >= 2:
+            decision_line = lines[0].strip().upper()
+            reason_line = lines[1].strip()
+            decision_parsed = False
+            reason_parsed = False
+
+            if decision_line.startswith("DECISION:"):
+                extracted_decision = decision_line.split(":", 1)[-1].strip()
+                if extracted_decision in ["LIKE", "PASS"]:
+                    decision = extracted_decision
+                    decision_parsed = True
+                else:
+                     logger.warning(f"Unexpected decision value: '{extracted_decision}'. Full response:\n{full_response}")
+            else:
+                 logger.warning(f"Decision line malformed: '{lines[0]}'. Full response:\n{full_response}")
+            
+            if reason_line.startswith("REASON:"):
+                reason = reason_line.split(":", 1)[-1].strip()
+                reason_parsed = True
+            else:
+                logger.warning(f"Reason line malformed: '{lines[1]}'. Full response:\n{full_response}")
+                # Fallback: Use the second line as reason if first line was okay
+                if decision_parsed: # Only if decision was parsed correctly
+                   reason = reason_line # Assume the whole line is the reason
+                   reason_parsed = True # Consider it parsed for the flag
+            
+            parsing_successful = decision_parsed and reason_parsed
+
+        else: # len(lines) < 2
+            logger.warning(f"Unexpected response format (expected 2 lines, got {len(lines)}). Full response:\n{full_response}")
+            # Attempt to salvage decision if it's just one line
+            if len(lines) == 1:
+                 single_line = lines[0].strip().upper()
+                 if single_line in ["LIKE", "PASS"]:
+                     decision = single_line
+                     reason = "(No reason provided by AI)"
+                     parsing_successful = True # Salvaged decision
+                 elif single_line.startswith("DECISION:"):
+                      extracted_decision = single_line.split(":", 1)[-1].strip()
+                      if extracted_decision in ["LIKE", "PASS"]:
+                          decision = extracted_decision
+                          reason = "(No reason provided by AI)"
+                          parsing_successful = True # Salvaged decision
+
+        # If parsing failed at any point, set the decision to LIKE and update reason
+        if not parsing_successful:
+             decision = "LIKE" # Default to LIKE on parsing failure/refusal
+             reason = "AI response unparseable or refusal; defaulting to LIKE."
+             # Log the failure
+             logger.warning(f"AI response parsing failed. Defaulting to LIKE. Original full response:\n{full_response}")
+
+        logger.info(f"Final Parsed Decision: {decision}, Reason: {reason}")
+        return decision, reason
 
     except Exception as e:
-        logger.error(f"Error during like/pass API call: {e}", exc_info=True)
-        return "ERROR_API_CALL" 
+        logger.error(f"Error during like/pass API call or parsing: {e}. Raw response:\n{full_response}", exc_info=True)
+        # Default to LIKE on any exception during API call/parsing
+        return "LIKE", f"Error during API call/parsing; defaulting to LIKE: {e}" 
